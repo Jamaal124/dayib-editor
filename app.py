@@ -78,24 +78,25 @@ def upload_video():
             })
 
         silences = []
-    for i in range(len(transcript.words) - 1):
-        current_end = transcript.words[i].end
-        next_start = transcript.words[i + 1].start
-        gap = (next_start - current_end) / 1000
-        if gap > 0.8:
-            silences.append({
-                'start': current_end,
-                'end': next_start,
-                'duration': round(gap, 2)
-            })
+        for i in range(len(transcript.words) - 1):
+            current_end = transcript.words[i].end
+            next_start = transcript.words[i + 1].start
+            gap = (next_start - current_end) / 1000
+            if gap > 0.8:
+                silences.append({
+                    'start': current_end,
+                    'end': next_start,
+                    'duration': round(gap, 2)
+                })
 
-    return jsonify({
-    'message': 'Video uploaded and transcribed successfully',
-    'filepath': filepath,
-    'transcript': transcript.text,
-    'words': words,
-    'silences': silences
-    })
+        return jsonify({
+            'message': 'Video uploaded and transcribed successfully',
+            'filepath': filepath,
+            'transcript': transcript.text,
+            'words': words,
+            'silences': silences
+        })
+
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({'error': str(e)}), 500
@@ -171,12 +172,10 @@ def export_video():
         ], check=True)
 
         if add_captions and words:
-            # Build SRT subtitle file
             srt_path = os.path.join(app.config['UPLOAD_FOLDER'], 'captions.srt')
-            
-            # Adjust word timestamps based on removed segments
+
             removed_sorted = sorted(removed_words, key=lambda x: x['start'])
-            
+
             def adjust_time(ms):
                 adjusted = ms
                 for seg in removed_sorted:
@@ -204,7 +203,7 @@ def export_video():
                         f.write(f"{word['text']}\n\n")
 
             output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'edited_' + os.path.basename(filepath))
-            
+
             subprocess.run([
                 'ffmpeg', '-y', '-i', cut_path,
                 '-vf', f"subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&H00c9a84c&,OutlineColour=&H00000000&,Outline=2,Alignment=2'",
@@ -228,5 +227,5 @@ def download(filename):
     )
 
 if __name__ == '__main__':
-port = int(os.environ.get('PORT', 5000))
-app.run(host='0.0.0.0', port=port, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
