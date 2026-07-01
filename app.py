@@ -140,37 +140,37 @@ def export_video():
         if not keep_segments:
             return jsonify({'error': 'Nothing left to export'}), 400
 
-        n = len(keep_segments)
-        filter_parts = []
-
+        segment_files = []
         for i, (start, end) in enumerate(keep_segments):
-            filter_parts.append(f"[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{i}];")
-            filter_parts.append(f"[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{i}];")
+            seg_path = os.path.join(app.config['UPLOAD_FOLDER'], f'seg_{i}.mp4')
+            subprocess.run([
+                'ffmpeg', '-y', '-i', filepath,
+                '-ss', str(start), '-to', str(end),
+                '-c:v', 'libx264', '-c:a', 'aac',
+                '-avoid_negative_ts', 'make_zero',
+                seg_path
+            ], check=True)
+            segment_files.append(seg_path)
 
-        video_concat = ''.join([f'[v{i}]' for i in range(n)])
-        video_concat += f'concat=n={n}:v=1[outv];'
-
-        if n == 1:
-            audio_chain = '[a0]acopy[outa]'
-        else:
-            audio_chain = ''
-            prev = 'a0'
-            for i in range(1, n):
-                out = f'ax{i}'
-                audio_chain += f'[{prev}][a{i}]acrossfade=d=0.05[{out}];'
-                prev = out
-            audio_chain += f'[{prev}]acopy[outa]'
-
-        filter_complex = ''.join(filter_parts) + video_concat + audio_chain
+        # Write concat list
+        list_path = os.path.join(app.config['UPLOAD_FOLDER'], 'segments.txt')
+        with open(list_path, 'w') as f:
+            for seg_path in segment_files:
+                f.write(f"file '{os.path.abspath(seg_path)}'\n")
 
         cut_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cut_' + os.path.basename(filepath))
 
         subprocess.run([
-            'ffmpeg', '-y', '-i', filepath,
-            '-filter_complex', filter_complex,
-            '-map', '[outv]', '-map', '[outa]',
+            'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+            '-i', list_path,
+            '-c:v', 'libx264', '-c:a', 'aac',
             cut_path
         ], check=True)
+
+        # Clean up segment files
+        for seg_path in segment_files:
+            os.remove(seg_path)
+        os.remove(list_path)
 
         if add_captions and words:
             srt_path = os.path.join(app.config['UPLOAD_FOLDER'], 'captions.srt')
@@ -194,20 +194,30 @@ def export_video():
                 ms = ms % 1000
                 return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
+            # Group words into chunks of 4
+            chunks = []
+            chunk_size = 4
+            for i in range(0, len(words), chunk_size):
+                chunk = words[i:i + chunk_size]
+                chunk_start = adjust_time(chunk[0]['start'])
+                chunk_end = adjust_time(chunk[-1]['end'])
+                chunk_text = ' '.join(w['text'] for w in chunk)
+                if chunk_end > chunk_start:
+                    chunks.append((chunk_start, chunk_end, chunk_text))
+
             with open(srt_path, 'w') as f:
-                for i, word in enumerate(words):
-                    adj_start = adjust_time(word['start'])
-                    adj_end = adjust_time(word['end'])
-                    if adj_end > adj_start:
-                        f.write(f"{i+1}\n")
-                        f.write(f"{ms_to_srt(adj_start)} --> {ms_to_srt(adj_end)}\n")
-                        f.write(f"{word['text']}\n\n")
+                for i, (start, end, text) in enumerate(chunks):
+                    f.write(f"{i+1}\n")
+                    f.write(f"{ms_to_srt(start)} --> {ms_to_srt(end)}\n")
+                    f.write(f"{text}\n\n")
 
             output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'edited_' + os.path.basename(filepath))
 
+            srt_escaped = srt_path.replace('\\', '/').replace(':', '\\:')
+
             subprocess.run([
                 'ffmpeg', '-y', '-i', cut_path,
-                '-vf', f"subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&H00c9a84c&,OutlineColour=&H00000000&,Outline=2,Alignment=2'",
+                '-vf', f"subtitles='{srt_escaped}':force_style='FontSize=14,PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,Outline=2,Shadow=1,Alignment=2,MarginV=20'",
                 output_path
             ], check=True)
         else:
