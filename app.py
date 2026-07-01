@@ -143,9 +143,10 @@ def export_video():
         segment_files = []
         for i, (start, end) in enumerate(keep_segments):
             seg_path = os.path.join(app.config['UPLOAD_FOLDER'], f'seg_{i}.mp4')
-            subprocess.run([
+           subprocess.run([
                 'ffmpeg', '-y', '-i', filepath,
                 '-ss', str(start), '-to', str(end),
+                '-vf', 'scale=1280:-2',
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                 '-c:a', 'aac',
                 '-avoid_negative_ts', 'make_zero',
