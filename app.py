@@ -9,6 +9,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs('uploads', exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 app.secret_key = 'dayib-secret-2024'
 
