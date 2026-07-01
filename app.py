@@ -78,16 +78,16 @@ def upload_video():
             })
 
         silences = []
-for i in range(len(transcript.words) - 1):
-    current_end = transcript.words[i].end
-    next_start = transcript.words[i + 1].start
-    gap = (next_start - current_end) / 1000
-    if gap > 0.8:
-        silences.append({
-            'start': current_end,
-            'end': next_start,
-            'duration': round(gap, 2)
-        })
+    for i in range(len(transcript.words) - 1):
+        current_end = transcript.words[i].end
+        next_start = transcript.words[i + 1].start
+        gap = (next_start - current_end) / 1000
+        if gap > 0.8:
+            silences.append({
+                'start': current_end,
+                'end': next_start,
+                'duration': round(gap, 2)
+            })
 
     return jsonify({
     'message': 'Video uploaded and transcribed successfully',
