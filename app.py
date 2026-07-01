@@ -146,7 +146,8 @@ def export_video():
             subprocess.run([
                 'ffmpeg', '-y', '-i', filepath,
                 '-ss', str(start), '-to', str(end),
-                '-c:v', 'libx264', '-c:a', 'aac',
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+                '-c:a', 'aac',
                 '-avoid_negative_ts', 'make_zero',
                 seg_path
             ], check=True)
