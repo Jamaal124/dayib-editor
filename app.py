@@ -213,7 +213,7 @@ def export_video():
             srt_escaped = srt_path.replace('\\', '/').replace(':', '\\:')
             subprocess.run([
                 'ffmpeg', '-y', '-i', cut_path,
-                '-vf', f"subtitles='{srt_escaped}':force_style='FontSize=14,PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,Outline=2,Shadow=1,Alignment=2,MarginV=20'",
+                '-vf', f"subtitles='{srt_escaped}':fontsdir='/usr/share/fonts':force_style='FontName=Playfair Display,FontSize=16,PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,Outline=1,Shadow=1,Alignment=2,MarginV=30,Spacing=0.5'",
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                 '-c:a', 'aac',
                 output_path
