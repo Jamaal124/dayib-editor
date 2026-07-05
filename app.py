@@ -194,7 +194,10 @@ def export_video():
             final_path = os.path.join(app.config['UPLOAD_FOLDER'], 'final_' + os.path.basename(filepath) + '.mp4')
             subprocess.run([
                 'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
-                '-i', title_list_path, '-c', 'copy', final_path
+                '-i', title_list_path,
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+                '-c:a', 'aac',
+                final_path
             ], check=True)
 
             os.remove(title_path)
