@@ -276,6 +276,24 @@
                     <span class="slider"></span>
                 </label>
             </div>
+            <div class="toggle-row">
+                <div class="toggle-label">
+                    Add Title Card
+                    <span>Shows a title screen at the start of the video</span>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="titleToggle" onchange="toggleTitleInput()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="titleInput" style="display:none; margin-top:16px;">
+                <label style="color:#888; font-size:0.8rem; letter-spacing:1px;">TITLE TEXT</label>
+                <input type="text" id="titleText" placeholder="e.g. Mindset for Muslim Entrepreneurs"
+                    style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+                <label style="color:#888; font-size:0.8rem; letter-spacing:1px; margin-top:12px; display:block;">DURATION (seconds)</label>
+                <input type="number" id="titleDuration" value="3" min="1" max="10"
+                    style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+            </div>
         </div>
 
         <button class="btn" onclick="exportVideo()">✂️ REMOVE SELECTED & EXPORT</button>
@@ -400,6 +418,12 @@
             });
         }
 
+        function toggleTitleInput() {
+            const titleInput = document.getElementById('titleInput');
+            const toggle = document.getElementById('titleToggle');
+            titleInput.style.display = toggle.checked ? 'block' : 'none';
+        }
+
         async function exportVideo() {
             const exportStatus = document.getElementById('export-status');
             const addCaptions = document.getElementById('captionsToggle').checked;
@@ -426,7 +450,9 @@
                     filepath: currentFilepath,
                     removed_words: removedSegments,
                     add_captions: addCaptions,
-                    words: currentWords
+                    words: currentWords,
+                    title_text: document.getElementById('titleToggle').checked ? document.getElementById('titleText').value : '',
+                    title_duration: document.getElementById('titleDuration').value
                 })
             });
 
