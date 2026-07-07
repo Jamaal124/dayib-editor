@@ -175,36 +175,16 @@ def export_video():
         title_duration = int(data.get('title_duration', 3))
         
         if title_text:
-            title_path = os.path.join(app.config['UPLOAD_FOLDER'], 'title.mp4')
+            safe_title = title_text.replace("'", "\\'")
+            titled_path = os.path.join(app.config['UPLOAD_FOLDER'], 'titled_' + os.path.basename(filepath) + '.mp4')
             subprocess.run([
-                'ffmpeg', '-y',
-                '-f', 'lavfi', '-i', f'color=c=black:size=1280x720:rate=30:duration={title_duration}',
-                '-f', 'lavfi', '-i', f'aevalsrc=0:channel_layout=stereo:rate=48000:duration={title_duration}',
-                '-vf', f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':text='{safe_title}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2",
+                'ffmpeg', '-y', '-i', cut_path,
+                '-vf', f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':text='{safe_title}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h/4:enable='lte(t,{title_duration})'",
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                '-r', '30',
-                '-c:a', 'aac', '-ar', '48000', '-ac', '2',
-                title_path
+                '-c:a', 'aac',
+                titled_path
             ], check=True)
-
-            title_list_path = os.path.join(app.config['UPLOAD_FOLDER'], 'title_list.txt')
-            with open(title_list_path, 'w') as f:
-                f.write(f"file '{os.path.abspath(title_path)}'\n")
-                f.write(f"file '{os.path.abspath(cut_path)}'\n")
-
-            final_path = os.path.join(app.config['UPLOAD_FOLDER'], 'final_' + os.path.basename(filepath) + '.mp4')
-            subprocess.run([
-                'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
-                '-i', title_list_path,
-                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                '-r', '30',
-                '-c:a', 'aac', '-ar', '48000', '-ac', '2',
-                final_path
-            ], check=True)
-
-            os.remove(title_path)
-            os.remove(title_list_path)
-            cut_path = final_path
+            cut_path = titled_path
 
         if add_captions and words:
             srt_path = os.path.join(app.config['UPLOAD_FOLDER'], 'captions.srt')
