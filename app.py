@@ -178,11 +178,12 @@ def export_video():
             title_path = os.path.join(app.config['UPLOAD_FOLDER'], 'title.mp4')
             subprocess.run([
                 'ffmpeg', '-y',
-                '-f', 'lavfi', '-i', f'color=c=black:size=1280x720:duration={title_duration}',
-                '-f', 'lavfi', '-i', f'aevalsrc=0:duration={title_duration}',
-                '-vf', f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':text='{title_text}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2",
+                '-f', 'lavfi', '-i', f'color=c=black:size=1280x720:rate=30:duration={title_duration}',
+                '-f', 'lavfi', '-i', f'aevalsrc=0:channel_layout=stereo:rate=48000:duration={title_duration}',
+                '-vf', f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':text='{safe_title}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2",
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                '-c:a', 'aac',
+                '-r', '30',
+                '-c:a', 'aac', '-ar', '48000', '-ac', '2',
                 title_path
             ], check=True)
 
@@ -196,7 +197,8 @@ def export_video():
                 'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
                 '-i', title_list_path,
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                '-c:a', 'aac',
+                '-r', '30',
+                '-c:a', 'aac', '-ar', '48000', '-ac', '2',
                 final_path
             ], check=True)
 
