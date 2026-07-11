@@ -4,6 +4,7 @@ import assemblyai as aai
 import subprocess
 import os
 import json
+import uuid
 
 load_dotenv()
 
@@ -16,6 +17,10 @@ app.secret_key = 'dayib-secret-2024'
 aai.settings.api_key = os.getenv('ASSEMBLYAI_API_KEY')
 
 PASSWORD = 'dayib2024'
+
+# Cap ffmpeg/x264 threads: ffmpeg auto-detects the HOST machine's cores,
+# which oversubscribes the CPU on containerised hosts (e.g. Railway cgroup limits).
+FFMPEG_THREADS = os.environ.get('FFMPEG_THREADS', '4')
 
 
 def login_required(f):
@@ -111,6 +116,8 @@ def upload_video():
 @app.route('/export', methods=['POST'])
 @login_required
 def export_video():
+    job = uuid.uuid4().hex[:8]
+    temp_files = []
     try:
         data = request.json
         filepath = data['filepath']
@@ -143,51 +150,58 @@ def export_video():
         if not keep_segments:
             return jsonify({'error': 'Nothing left to export'}), 400
 
+        # Cut each keep-segment. -ss/-t BEFORE -i = input seeking: ffmpeg jumps
+        # straight to the timestamp (still frame-accurate when re-encoding)
+        # instead of decoding the entire file up to that point for every segment.
         segment_files = []
         for i, (start, end) in enumerate(keep_segments):
-            seg_path = os.path.join(app.config['UPLOAD_FOLDER'], f'seg_{i}.mp4')
+            seg_path = os.path.join(app.config['UPLOAD_FOLDER'], f'seg_{job}_{i}.mp4')
+            temp_files.append(seg_path)
             subprocess.run([
-                'ffmpeg', '-y', '-i', filepath,
-                '-ss', str(start), '-to', str(end),
+                'ffmpeg', '-y',
+                '-ss', f'{start:.3f}', '-t', f'{end - start:.3f}',
+                '-i', filepath,
                 '-vf', 'scale=1280:-2',
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                 '-c:a', 'aac',
+                '-threads', FFMPEG_THREADS,
                 '-avoid_negative_ts', 'make_zero',
                 seg_path
-            ], check=True)
+            ], check=True, capture_output=True)
             segment_files.append(seg_path)
 
-        list_path = os.path.join(app.config['UPLOAD_FOLDER'], 'segments.txt')
+        list_path = os.path.join(app.config['UPLOAD_FOLDER'], f'segments_{job}.txt')
+        temp_files.append(list_path)
         with open(list_path, 'w') as f:
             for seg_path in segment_files:
                 f.write(f"file '{os.path.abspath(seg_path)}'\n")
 
-        cut_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cut_' + os.path.basename(filepath) + '.mp4')
+        cut_path = os.path.join(app.config['UPLOAD_FOLDER'], f'cut_{job}_' + os.path.basename(filepath) + '.mp4')
         subprocess.run([
             'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
             '-i', list_path, '-c', 'copy', cut_path
-        ], check=True)
+        ], check=True, capture_output=True)
 
-        for seg_path in segment_files:
-            os.remove(seg_path)
-        os.remove(list_path)
+        # Build the optional title and caption filters, then apply them together
+        # in ONE encode pass instead of a separate full re-encode for each.
+        filters = []
+
         title_text = data.get('title_text', '')
         title_duration = int(data.get('title_duration', 3))
-        
         if title_text:
-            safe_title = title_text.replace("'", "\\'")
-            titled_path = os.path.join(app.config['UPLOAD_FOLDER'], 'titled_' + os.path.basename(filepath) + '.mp4')
-            subprocess.run([
-                'ffmpeg', '-y', '-i', cut_path,
-                '-vf', f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':text='{safe_title}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h/4:enable='lte(t,{title_duration})'",
-                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                '-c:a', 'aac',
-                titled_path
-            ], check=True)
-            cut_path = titled_path
+            # textfile= instead of text=: avoids ffmpeg filter-escaping bugs with
+            # apostrophes/commas/colons in the title (e.g. "Abdi's Test").
+            title_path = os.path.join(app.config['UPLOAD_FOLDER'], f'title_{job}.txt')
+            temp_files.append(title_path)
+            with open(title_path, 'w') as f:
+                f.write(title_text)
+            filters.append(
+                f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':textfile='{title_path}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h/4:enable='lte(t,{title_duration})'"
+            )
 
         if add_captions and words:
-            srt_path = os.path.join(app.config['UPLOAD_FOLDER'], 'captions.srt')
+            srt_path = os.path.join(app.config['UPLOAD_FOLDER'], f'captions_{job}.srt')
+            temp_files.append(srt_path)
             removed_sorted = sorted(removed_words, key=lambda x: x['start'])
 
             def adjust_time(ms):
@@ -223,23 +237,41 @@ def export_video():
                     f.write(f"{ms_to_srt(start)} --> {ms_to_srt(end)}\n")
                     f.write(f"{text}\n\n")
 
-            output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'edited_' + os.path.basename(filepath) + '.mp4')
             srt_escaped = srt_path.replace('\\', '/').replace(':', '\\:')
+            filters.append(
+                f"subtitles='{srt_escaped}':force_style='FontName=Liberation Serif,FontSize=16,PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,Outline=1,Shadow=1,Alignment=2,MarginV=30,Spacing=0.5'"
+            )
+
+        if filters:
+            output_path = os.path.join(app.config['UPLOAD_FOLDER'], f'edited_{job}_' + os.path.basename(filepath) + '.mp4')
+            temp_files.append(cut_path)
             subprocess.run([
                 'ffmpeg', '-y', '-i', cut_path,
-                '-vf', f"subtitles='{srt_escaped}':force_style='FontName=Liberation Serif,FontSize=16,PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,Outline=1,Shadow=1,Alignment=2,MarginV=30,Spacing=0.5'",
+                '-vf', ','.join(filters),
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                 '-c:a', 'aac',
+                '-threads', FFMPEG_THREADS,
                 output_path
-            ], check=True)
+            ], check=True, capture_output=True)
         else:
             output_path = cut_path
 
         return jsonify({'download_url': f'/download/{os.path.basename(output_path)}'})
 
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors='ignore') if e.stderr else str(e)
+        print(f"EXPORT FFMPEG ERROR: {stderr}")
+        return jsonify({'error': f'ffmpeg failed: {stderr[-500:]}'}), 500
     except Exception as e:
         print(f"EXPORT ERROR: {e}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        # Always clean up intermediate files, even when export fails.
+        for path in temp_files:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 @app.route('/download/<filename>')
