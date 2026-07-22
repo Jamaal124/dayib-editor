@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your export — Dayib Editor</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #111; color: #eee; margin: 0; min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; }
+  .card { background: #1c1c1c; border: 1px solid #2e2e2e; border-radius: 12px;
+          padding: 32px; max-width: 460px; width: calc(100% - 40px); text-align: center; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { color: #aaa; font-size: 14px; line-height: 1.5; }
+  .bar { background: #2e2e2e; border-radius: 6px; height: 12px; overflow: hidden; margin: 20px 0 8px; }
+  .bar-fill { background: #4a90d9; height: 100%; width: 0%; transition: width .5s; }
+  .pct { font-size: 13px; color: #888; }
+  .btn { display: inline-block; background: #4a90d9; color: #fff; text-decoration: none;
+         padding: 14px 28px; border-radius: 8px; font-size: 16px; font-weight: 600;
+         margin-top: 16px; border: none; cursor: pointer; }
+  .btn.secondary { background: #2e2e2e; font-size: 13px; padding: 8px 14px; }
+  .error-box { background: #2a1717; border: 1px solid #5a2b2b; color: #e8a0a0;
+               border-radius: 8px; padding: 12px; font-size: 13px; text-align: left;
+               white-space: pre-wrap; word-break: break-word; margin-top: 16px; }
+  .linkline { margin-top: 24px; padding-top: 16px; border-top: 1px solid #2e2e2e; }
+  .url { font-size: 12px; color: #888; word-break: break-all; background: #161616;
+         padding: 8px; border-radius: 6px; margin: 8px 0; }
+  .hidden { display: none; }
+  a { color: #4a90d9; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="state-loading">
+    <h1>Checking your export…</h1>
+  </div>
+
+  <div id="state-queued" class="hidden">
+    <h1>Waiting in the queue</h1>
+    <p>An earlier export is still finishing. Yours will start automatically — keep this page open or come back later.</p>
+  </div>
+
+  <div id="state-processing" class="hidden">
+    <h1>Exporting your video</h1>
+    <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+    <div class="pct"><span id="pct">0</span>%</div>
+    <p>You can close this page — your video will be ready at this same link.</p>
+  </div>
+
+  <div id="state-done" class="hidden">
+    <h1>Your video is ready</h1>
+    <a class="btn" id="download-btn" href="#">Download video</a>
+    <p id="until"></p>
+  </div>
+
+  <div id="state-failed" class="hidden">
+    <h1>Export failed</h1>
+    <div class="error-box" id="error-msg"></div>
+    <p><a href="/">Go back to the editor and try exporting again</a></p>
+  </div>
+
+  <div id="state-unknown" class="hidden">
+    <h1>This job has expired</h1>
+    <p>The link has expired or the server restarted. Please <a href="/">re-export your video</a>.</p>
+  </div>
+
+  <div class="linkline" id="linkline">
+    <p style="margin:0">Save this link — your video will be ready here.</p>
+    <div class="url" id="page-url"></div>
+    <button class="btn secondary" id="copy-btn">Copy link</button>
+  </div>
+</div>
+
+<script>
+  const jobId = "{{ job_id }}";
+  const states = ['loading', 'queued', 'processing', 'done', 'failed', 'unknown'];
+  let timer = null;
+
+  function show(state) {
+    states.forEach(s => document.getElementById('state-' + s).classList.toggle('hidden', s !== state));
+    // Once the job is finished (or gone), stop nagging about saving the link.
+    document.getElementById('linkline').classList.toggle('hidden',
+      state === 'done' || state === 'failed' || state === 'unknown');
+  }
+
+  async function poll() {
+    let res;
+    try {
+      res = await fetch('/api/jobs/' + jobId, { headers: { 'Accept': 'application/json' } });
+    } catch (e) {
+      return; // network hiccup — try again next tick
+    }
+    if (res.status === 404) { show('unknown'); clearInterval(timer); return; }
+    let job;
+    try { job = await res.json(); } catch (e) { return; }
+
+    if (job.status === 'queued') {
+      show('queued');
+    } else if (job.status === 'processing') {
+      show('processing');
+      document.getElementById('bar-fill').style.width = job.progress + '%';
+      document.getElementById('pct').textContent = job.progress;
+    } else if (job.status === 'done') {
+      document.getElementById('download-btn').href = job.download_url;
+      document.getElementById('until').textContent = 'Available until ' + job.available_until + '.';
+      show('done');
+      clearInterval(timer);
+    } else if (job.status === 'failed') {
+      document.getElementById('error-msg').textContent = job.error || 'Unknown error';
+      show('failed');
+      clearInterval(timer);
+    }
+  }
+
+  document.getElementById('page-url').textContent = window.location.href;
+  document.getElementById('copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      document.getElementById('copy-btn').textContent = 'Copied';
+      setTimeout(() => document.getElementById('copy-btn').textContent = 'Copy link', 2000);
+    } catch (e) {}
+  });
+
+  poll();
+  timer = setInterval(poll, 2500);
+</script>
+</body>
+</html>

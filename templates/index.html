@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dayib Video Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid #222;
+        }
+
+        .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: 2px; color: #c9a84c; }
+        .nav-tag { background: #1a1a1a; color: #c9a84c; padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; letter-spacing: 1px; }
+
+        .hero { text-align: center; padding: 80px 20px 40px; }
+        .hero h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+        .hero h1 span { color: #c9a84c; }
+        .hero p { color: #888; font-size: 1rem; max-width: 400px; margin: 0 auto 40px; line-height: 1.6; }
+
+        .upload-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            padding: 50px 40px;
+            max-width: 500px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .upload-icon { width: 70px; height: 70px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 1.8rem; }
+        .upload-card h2 { font-size: 1.2rem; margin-bottom: 8px; }
+        .upload-card p { color: #666; font-size: 0.85rem; margin-bottom: 30px; }
+
+        .file-label { display: block; border: 2px dashed #333; border-radius: 12px; padding: 30px; cursor: pointer; transition: border-color 0.2s; margin-bottom: 20px; }
+        .file-label:hover { border-color: #c9a84c; }
+        .file-label span { color: #555; font-size: 0.9rem; }
+        .file-label .file-name { color: #c9a84c; font-size: 0.85rem; margin-top: 8px; display: none; }
+        input[type="file"] { display: none; }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: #c9a84c;
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #e0bc60; }
+
+        .btn-secondary {
+            padding: 10px 20px;
+            background: #1a1a1a;
+            color: #fff;
+            border: 1px solid #333;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .btn-secondary:hover { border-color: #c9a84c; color: #c9a84c; }
+
+        .btn-danger {
+            padding: 10px 20px;
+            background: #1a1a1a;
+            color: #e05555;
+            border: 1px solid #e05555;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover { background: #e05555; color: #fff; }
+
+        #status { margin-top: 16px; font-size: 0.85rem; min-height: 20px; }
+        .status-success { color: #4caf7d; }
+        .status-error { color: #e05555; }
+        .status-loading { color: #888; }
+
+        .features { display: flex; justify-content: center; gap: 16px; padding: 50px 20px; flex-wrap: wrap; max-width: 600px; margin: 0 auto; }
+        .feature { background: #1a1a1a; border: 1px solid #222; border-radius: 12px; padding: 20px; flex: 1; min-width: 140px; text-align: center; }
+        .feature-icon { font-size: 1.5rem; margin-bottom: 8px; }
+        .feature h3 { font-size: 0.85rem; color: #fff; margin-bottom: 4px; }
+        .feature p { font-size: 0.75rem; color: #555; }
+
+        /* TRANSCRIPT */
+        .transcript-section { display: none; max-width: 700px; margin: 0 auto; padding: 0 20px 60px; }
+        .transcript-section h2 { color: #fff; margin-bottom: 8px; }
+        .transcript-section .subtitle { color: #555; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.6; }
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .transcript-box {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+            padding: 30px;
+            line-height: 2.2;
+            font-size: 1rem;
+            margin-bottom: 24px;
+        }
+
+        .silence-badge {
+            display: inline-block;
+            background: #222;
+            color: #555;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin: 0 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid #333;
+        }
+        .silence-badge:hover { border-color: #e0a84c; color: #e0a84c; }
+        .silence-badge.selected { background: #e05555; color: #fff; border-color: #e05555; text-decoration: line-through; }
+
+        .word { cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: background 0.15s; }
+        .word:hover { background: #2a2a2a; }
+        .word.filler { color: #e0a84c; font-weight: 600; }
+        .word.selected { background: #e05555; color: #fff; text-decoration: line-through; }
+
+        /* EXPORT OPTIONS */
+        .export-options {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .export-options h3 { font-size: 0.95rem; margin-bottom: 16px; color: #fff; }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #222;
+        }
+        .toggle-row:last-child { border-bottom: none; }
+
+        .toggle-label { font-size: 0.9rem; color: #ccc; }
+        .toggle-label span { display: block; font-size: 0.75rem; color: #555; margin-top: 2px; }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #333;
+            border-radius: 24px;
+            transition: 0.2s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        input:checked + .slider { background: #c9a84c; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        #export-status { margin-top: 16px; font-size: 0.85rem; }
+
+        @media (max-width: 600px) {
+            nav { padding: 16px 20px; }
+            .hero h1 { font-size: 2rem; }
+            .upload-card { padding: 30px 20px; margin: 0 16px; }
+            .transcript-section { padding: 0 16px 40px; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">DAYIB</div>
+        <div class="nav-tag">AI VIDEO EDITOR</div>
+    </nav>
+
+    <div class="hero">
+        <h1>Edit smarter,<br><span>not harder.</span></h1>
+        <p>Upload your video and let AI remove the mistakes, silences, and filler words automatically.</p>
+    </div>
+
+    <div class="upload-card">
+        <div class="upload-icon">🎬</div>
+        <h2>Upload your video</h2>
+        <p>Supports MP4, MOV, AVI up to 500MB</p>
+
+        <label class="file-label" for="videoInput">
+            <span>Click to browse or drag & drop</span>
+            <div class="file-name" id="fileName"></div>
+        </label>
+        <input type="file" id="videoInput" accept="video/*">
+
+        <button class="btn" onclick="uploadVideo()">ANALYSE VIDEO</button>
+        <div id="status"></div>
+    </div>
+
+    <div class="features">
+        <div class="feature">
+            <div class="feature-icon">✂️</div>
+            <h3>Auto Cut</h3>
+            <p>Removes silences instantly</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🎙️</div>
+            <h3>Filler Words</h3>
+            <p>Detects ums and ahs</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">⚡</div>
+            <h3>Fast Export</h3>
+            <p>Download in seconds</p>
+        </div>
+    </div>
+
+    <div class="transcript-section" id="transcript-section">
+        <h2>Transcript</h2>
+        <p class="subtitle">
+            Words in <span style="color:#e0a84c;">gold</span> are filler words. 
+            Click any word or silence to mark for removal. Use the buttons below to auto-select.
+        </p>
+
+        <div class="action-bar">
+            <button class="btn-secondary" onclick="autoSelectFillers()">🎙️ Select All Fillers</button>
+            <button class="btn-secondary" onclick="autoSelectSilences()">🔇 Select All Silences</button>
+            <button class="btn-danger" onclick="clearAll()">✕ Clear All</button>
+        </div>
+
+        <div class="transcript-box" id="transcript"></div>
+
+        <div class="export-options">
+            <h3>Export Options</h3>
+            <div class="toggle-row">
+                <div class="toggle-label">
+                    Burn-in Captions
+                    <span>Adds animated word-by-word subtitles to the video</span>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="captionsToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <div class="toggle-label">
+                    Add Title Card
+                    <span>Shows a title screen at the start of the video</span>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="titleToggle" onchange="toggleTitleInput()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="titleInput" style="display:none; margin-top:16px;">
+                <label style="color:#888; font-size:0.8rem; letter-spacing:1px;">TITLE TEXT</label>
+                <input type="text" id="titleText" placeholder="e.g. Mindset for Muslim Entrepreneurs"
+                    style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+                <label style="color:#888; font-size:0.8rem; letter-spacing:1px; margin-top:12px; display:block;">DURATION (seconds)</label>
+                <input type="number" id="titleDuration" value="3" min="1" max="10"
+                    style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+            </div>
+        </div>
+
+        <button class="btn" onclick="exportVideo()">✂️ REMOVE SELECTED & EXPORT</button>
+        <div id="export-status"></div>
+    </div>
+
+    <script>
+        let currentFilepath = null;
+        let currentWords = [];
+        let currentSilences = [];
+
+        document.getElementById('videoInput').addEventListener('change', function() {
+            const fileName = document.getElementById('fileName');
+            const label = document.querySelector('.file-label span');
+            if (this.files[0]) {
+                fileName.textContent = this.files[0].name;
+                fileName.style.display = 'block';
+                label.textContent = 'File selected ✓';
+            }
+        });
+
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoInput');
+            const status = document.getElementById('status');
+
+            if (!fileInput.files[0]) {
+                status.className = 'status-error';
+                status.textContent = 'Please select a video first.';
+                return;
+            }
+
+            status.className = 'status-loading';
+            status.textContent = 'Uploading and transcribing... this may take a few minutes';
+
+            const formData = new FormData();
+            formData.append('video', fileInput.files[0]);
+
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                status.className = 'status-success';
+                status.textContent = `✓ Done! ${data.words.length} words detected, ${data.silences.length} silences found.`;
+                currentFilepath = data.filepath;
+                currentWords = data.words;
+                currentSilences = data.silences;
+                displayTranscript(data.words, data.silences);
+            } else {
+                status.className = 'status-error';
+                status.textContent = data.error;
+            }
+        }
+
+        function displayTranscript(words, silences) {
+            const container = document.getElementById('transcript-section');
+            const transcriptDiv = document.getElementById('transcript');
+
+            container.style.display = 'block';
+            transcriptDiv.innerHTML = '';
+
+            let allItems = [];
+
+            words.forEach((word, index) => {
+                allItems.push({ type: 'word', data: word, index });
+            });
+
+            silences.forEach((silence, index) => {
+                allItems.push({ type: 'silence', data: silence, index });
+            });
+
+            allItems.sort((a, b) => a.data.start - b.data.start);
+
+            allItems.forEach(item => {
+                if (item.type === 'word') {
+                    const word = item.data;
+                    const span = document.createElement('span');
+                    span.textContent = word.text + ' ';
+                    span.dataset.index = item.index;
+                    span.dataset.start = word.start;
+                    span.dataset.end = word.end;
+                    span.className = word.is_filler ? 'word filler' : 'word';
+                    span.addEventListener('click', function() {
+                        this.classList.toggle('selected');
+                    });
+                    transcriptDiv.appendChild(span);
+                } else {
+                    const silence = item.data;
+                    const badge = document.createElement('span');
+                    badge.textContent = `${silence.duration}s pause`;
+                    badge.dataset.start = silence.start;
+                    badge.dataset.end = silence.end;
+                    badge.className = 'silence-badge';
+                    badge.addEventListener('click', function() {
+                        this.classList.toggle('selected');
+                    });
+                    transcriptDiv.appendChild(badge);
+                }
+            });
+
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function autoSelectFillers() {
+            document.querySelectorAll('.word.filler').forEach(el => {
+                el.classList.add('selected');
+            });
+        }
+
+        function autoSelectSilences() {
+            document.querySelectorAll('.silence-badge').forEach(el => {
+                el.classList.add('selected');
+            });
+        }
+
+        function clearAll() {
+            document.querySelectorAll('.word.selected, .silence-badge.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+        }
+
+        function toggleTitleInput() {
+            const titleInput = document.getElementById('titleInput');
+            const toggle = document.getElementById('titleToggle');
+            titleInput.style.display = toggle.checked ? 'block' : 'none';
+        }
+
+        async function exportVideo() {
+            const exportStatus = document.getElementById('export-status');
+            const addCaptions = document.getElementById('captionsToggle').checked;
+            const selected = document.querySelectorAll('.word.selected, .silence-badge.selected');
+
+            if (selected.length === 0) {
+                exportStatus.style.color = '#e05555';
+                exportStatus.textContent = 'Please select some words or silences to remove first.';
+                return;
+            }
+
+            exportStatus.style.color = '#888';
+            exportStatus.textContent = 'Starting your export...';
+
+            const removedSegments = Array.from(selected).map(el => ({
+                start: parseInt(el.dataset.start),
+                end: parseInt(el.dataset.end)
+            }));
+
+            const response = await fetch('/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filepath: currentFilepath,
+                    removed_words: removedSegments,
+                    add_captions: addCaptions,
+                    words: currentWords,
+                    title_text: document.getElementById('titleToggle').checked ? document.getElementById('titleText').value : '',
+                    title_duration: document.getElementById('titleDuration').value
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                window.location = data.job_url;
+            } else {
+                exportStatus.style.color = '#e05555';
+                exportStatus.textContent = data.error;
+            }
+        }
+    </script>
+
+</body>
+</html>
