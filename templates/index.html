@@ -436,7 +436,7 @@
             }
 
             exportStatus.style.color = '#888';
-            exportStatus.textContent = '✂️ Cutting video... this may take a minute';
+            exportStatus.textContent = 'Starting your export...';
 
             const removedSegments = Array.from(selected).map(el => ({
                 start: parseInt(el.dataset.start),
@@ -459,8 +459,7 @@
             const data = await response.json();
 
             if (response.ok) {
-                exportStatus.style.color = '#4caf7d';
-                exportStatus.innerHTML = `✓ Done! <a href="${data.download_url}" style="color:#c9a84c; font-weight:bold;">Download edited video</a>`;
+                window.location = data.job_url;
             } else {
                 exportStatus.style.color = '#e05555';
                 exportStatus.textContent = data.error;

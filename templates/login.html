@@ -105,6 +105,7 @@
         <div class="subtitle">AI VIDEO EDITOR</div>
 
         <form method="POST">
+            <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
             <div class="input-group">
                 <label>PASSWORD</label>
                 <input type="password" name="password" placeholder="Enter your password" autofocus>
