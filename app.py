@@ -22,6 +22,24 @@ aai.settings.api_key = os.getenv('ASSEMBLYAI_API_KEY')
 # Cap ffmpeg/x264 threads: ffmpeg auto-detects the HOST machine's cores,
 # which oversubscribes the CPU on containerised hosts (e.g. Railway cgroup limits).
 FFMPEG_THREADS = os.environ.get('FFMPEG_THREADS', '4')
+def hex_to_ass_colour(hex_colour):
+    """Convert an HTML hex colour (#RRGGBB) to ffmpeg's &HBBGGRR format.
+    ffmpeg/libass store colour bytes reversed (blue-green-red), which is why
+    a naive #RRGGBB passed straight in comes out with red and blue swapped.
+    """
+    h = hex_colour.lstrip('#')
+    if len(h) != 6:
+        h = 'ffffff'
+    r, g, b = h[0:2], h[2:4], h[4:6]
+    return f"&H{b}{g}{r}".upper()
+
+# Map the dropdown choices to fonts the Dockerfile actually installs
+# (fonts-liberation package). Unknown values fall back to serif.
+TITLE_FONTS = {
+    'serif': '/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf',
+    'sans': '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    'mono': '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
+}
 
 # How long finished exports (and job records) stick around.
 RETENTION_DAYS = 7
@@ -153,6 +171,8 @@ def run_export(job_id, data):
         title_text = data.get('title_text', '')
         title_duration = int(data.get('title_duration', 3))
         if title_text:
+            title_colour = hex_to_ass_colour(data.get('title_colour', '#ffffff'))
+            title_font = TITLE_FONTS.get(data.get('title_font', 'serif'), TITLE_FONTS['serif'])
             # textfile= instead of text=: avoids ffmpeg filter-escaping bugs with
             # apostrophes/commas/colons in the title (e.g. "Abdi's Test").
             title_path = os.path.join(app.config['UPLOAD_FOLDER'], f'title_{job_id}.txt')
@@ -160,7 +180,7 @@ def run_export(job_id, data):
             with open(title_path, 'w') as f:
                 f.write(title_text)
             filters.append(
-                f"drawtext=fontfile='/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf':textfile='{title_path}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=h/4:enable='lte(t,{title_duration})'"
+                f"drawtext=fontfile='{title_font}':textfile='{title_path}':fontcolor={title_colour}:fontsize=48:x=(w-text_w)/2:y=h/4:enable='lte(t,{title_duration})'"
             )
 
         if add_captions and words:

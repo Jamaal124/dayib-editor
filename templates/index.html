@@ -293,6 +293,16 @@
                 <label style="color:#888; font-size:0.8rem; letter-spacing:1px; margin-top:12px; display:block;">DURATION (seconds)</label>
                 <input type="number" id="titleDuration" value="3" min="1" max="10"
                     style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+                    <label style="color:#888; font-size:0.8rem; letter-spacing:1px; margin-top:12px; display:block;">TITLE COLOUR</label>
+                    <input type="color" id="titleColour" value="#ffffff"
+                        style="width:100%; height:44px; padding:4px; background:#111; border:1px solid #333; border-radius:10px; margin-top:8px; cursor:pointer;">
+                    <label style="color:#888; font-size:0.8rem; letter-spacing:1px; margin-top:12px; display:block;">TITLE FONT</label>
+                    <select id="titleFont"
+                        style="width:100%; padding:12px; background:#111; border:1px solid #333; border-radius:10px; color:#fff; font-size:0.95rem; margin-top:8px; outline:none;">
+                        <option value="serif">Serif (elegant)</option>
+                        <option value="sans">Sans-serif (clean)</option>
+                        <option value="mono">Monospace</option>
+                    </select>
             </div>
         </div>
 
@@ -452,7 +462,9 @@
                     add_captions: addCaptions,
                     words: currentWords,
                     title_text: document.getElementById('titleToggle').checked ? document.getElementById('titleText').value : '',
-                    title_duration: document.getElementById('titleDuration').value
+                    title_duration: document.getElementById('titleDuration').value,
+                    title_colour: document.getElementById('titleColour').value,
+                    title_font: document.getElementById('titleFont').value,
                 })
             });
 
