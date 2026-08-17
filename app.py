@@ -387,7 +387,7 @@ def _analyse_transcript(transcript):
         current_end = transcript.words[i].end
         next_start = transcript.words[i + 1].start
         gap = (next_start - current_end) / 1000
-        if gap > 0.8:
+        if gap > 0.5:
             silences.append({
                 'start': current_end,
                 'end': next_start,
