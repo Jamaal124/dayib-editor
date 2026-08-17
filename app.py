@@ -310,61 +310,197 @@ def index():
 # Upload (unchanged — async conversion is a planned follow-up)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Multi-clip helpers
+#
+# Her workflow: record in sections (less chance of fluffing a long take),
+# then stitch them in order. We merge the clips into ONE video at upload time
+# and trim the dead air off the end of each, then hand the single merged file
+# into the existing transcribe/edit/export flow unchanged. Everything
+# downstream still works on one filepath.
+# ---------------------------------------------------------------------------
+
+def _last_word_end_seconds(transcript, buffer_seconds=0.4):
+    """Where to trim a clip: just after the last spoken word, plus a small
+    breathing buffer. Returns None if the clip has no detected speech (we then
+    keep the whole clip rather than guess)."""
+    if not transcript.words:
+        return None
+    return (transcript.words[-1].end / 1000) + buffer_seconds
+
+
+def _normalise_and_trim_clip(src_path, dst_path, trim_at=None):
+    """Re-encode a clip to a common format so clips concatenate cleanly, and
+    optionally cut it at trim_at seconds to drop trailing dead air.
+
+    Normalising matters: concat's fast '-c copy' path only works if every clip
+    shares the same codec/resolution/framerate. Phone clips usually do, but a
+    stray one at a different resolution would corrupt the join, so we make them
+    uniform here rather than trust that.
+    """
+    cmd = ['ffmpeg', '-y', '-i', src_path]
+    if trim_at:
+        cmd += ['-t', f'{trim_at:.3f}']
+    cmd += [
+        '-vf', 'scale=1280:-2',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-c:a', 'aac', '-ar', '44100',
+        '-threads', FFMPEG_THREADS,
+        dst_path,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    return dst_path
+
+
+def _merge_clips(clip_paths, dst_path):
+    """Concatenate already-normalised clips (in the given order) into one file."""
+    list_path = dst_path + '.txt'
+    with open(list_path, 'w') as f:
+        for p in clip_paths:
+            f.write(f"file '{os.path.abspath(p)}'\n")
+    subprocess.run([
+        'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+        '-i', list_path, '-c', 'copy', dst_path,
+    ], check=True, capture_output=True)
+    try:
+        os.remove(list_path)
+    except OSError:
+        pass
+    return dst_path
+
+
+def _analyse_transcript(transcript):
+    """Turn an AssemblyAI transcript into the words + silences payload the
+    frontend expects. Factored out so single- and multi-clip paths share it."""
+    filler_words = ['um', 'uh', 'like', 'you know', 'basically', 'literally',
+                    'actually', 'right', 'so', 'okay', 'kind of', 'sort of']
+    words = []
+    for word in transcript.words:
+        words.append({
+            'text': word.text,
+            'start': word.start,
+            'end': word.end,
+            'is_filler': word.text.lower().strip('.,!?') in filler_words
+        })
+    silences = []
+    for i in range(len(transcript.words) - 1):
+        current_end = transcript.words[i].end
+        next_start = transcript.words[i + 1].start
+        gap = (next_start - current_end) / 1000
+        if gap > 0.8:
+            silences.append({
+                'start': current_end,
+                'end': next_start,
+                'duration': round(gap, 2)
+            })
+    return words, silences
+
+
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_video():
     try:
-        if 'video' not in request.files:
-            return jsonify({'error': 'No video uploaded'}), 400
-        file = request.files['video']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        # Accept both the old single-file field ('video') and the new
+        # multi-file field ('videos'), so nothing breaks if one clip is sent.
+        files = request.files.getlist('videos')
+        if not files:
+            single = request.files.get('video')
+            files = [single] if single else []
+        files = [f for f in files if f and f.filename]
 
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filepath)
+        if not files:
+            return jsonify({'error': 'No video uploaded'}), 400
 
         config = aai.TranscriptionConfig(punctuate=True, format_text=True)
         transcriber = aai.Transcriber()
-        transcript = transcriber.transcribe(filepath, config=config)
 
-        if transcript.status == aai.TranscriptStatus.error:
-            return jsonify({'error': 'Transcription failed'}), 500
+        # --- Single clip: original behaviour, just with a unique filename ---
+        if len(files) == 1:
+            f = files[0]
+            filepath = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                f'{uuid.uuid4().hex[:8]}_{f.filename}'
+            )
+            f.save(filepath)
 
-        filler_words = ['um', 'uh', 'like', 'you know', 'basically', 'literally',
-                        'actually', 'right', 'so', 'okay', 'kind of', 'sort of']
+            transcript = transcriber.transcribe(filepath, config=config)
+            if transcript.status == aai.TranscriptStatus.error:
+                return jsonify({'error': 'Transcription failed'}), 500
 
-        words = []
-        for word in transcript.words:
-            words.append({
-                'text': word.text,
-                'start': word.start,
-                'end': word.end,
-                'is_filler': word.text.lower().strip('.,!?') in filler_words
+            words, silences = _analyse_transcript(transcript)
+            return jsonify({
+                'message': 'Video uploaded and transcribed successfully',
+                'filepath': filepath,
+                'transcript': transcript.text,
+                'words': words,
+                'silences': silences
             })
 
-        silences = []
-        for i in range(len(transcript.words) - 1):
-            current_end = transcript.words[i].end
-            next_start = transcript.words[i + 1].start
-            gap = (next_start - current_end) / 1000
-            if gap > 0.8:
-                silences.append({
-                    'start': current_end,
-                    'end': next_start,
-                    'duration': round(gap, 2)
-                })
+        # --- Multiple clips: save each, trim dead air, merge, transcribe once ---
+        batch = uuid.uuid4().hex[:8]
+        normalised = []
+        for i, f in enumerate(files):
+            # Save the raw upload under a unique name (this is the fix for the
+            # overwrite bug — two clips named video.mp4 no longer collide).
+            raw_path = os.path.join(
+                app.config['UPLOAD_FOLDER'], f'{batch}_raw_{i}_{f.filename}'
+            )
+            f.save(raw_path)
 
+            # Transcribe this clip on its own only to find where speech ends,
+            # so we can trim the trailing dead air (e.g. reaching to stop the
+            # recording) before stitching.
+            clip_tx = transcriber.transcribe(raw_path, config=config)
+            trim_at = _last_word_end_seconds(clip_tx) if clip_tx.words else None
+
+            norm_path = os.path.join(
+                app.config['UPLOAD_FOLDER'], f'{batch}_norm_{i}.mp4'
+            )
+            _normalise_and_trim_clip(raw_path, norm_path, trim_at)
+            normalised.append(norm_path)
+
+            # The raw upload is no longer needed once normalised.
+            try:
+                os.remove(raw_path)
+            except OSError:
+                pass
+
+        # Merge in upload order (= the order she wants them joined).
+        merged_path = os.path.join(
+            app.config['UPLOAD_FOLDER'], f'{batch}_merged.mp4'
+        )
+        _merge_clips(normalised, merged_path)
+
+        # Clean up the per-clip normalised files; the merged file is what the
+        # rest of the app works on from here.
+        for p in normalised:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+        # Transcribe the MERGED video so word/silence timings line up with the
+        # single file the editor and export will use.
+        transcript = transcriber.transcribe(merged_path, config=config)
+        if transcript.status == aai.TranscriptStatus.error:
+            return jsonify({'error': 'Transcription of merged video failed'}), 500
+
+        words, silences = _analyse_transcript(transcript)
         return jsonify({
-            'message': 'Video uploaded and transcribed successfully',
-            'filepath': filepath,
+            'message': f'{len(files)} clips merged and transcribed successfully',
+            'filepath': merged_path,
             'transcript': transcript.text,
             'words': words,
             'silences': silences
         })
+
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode(errors='ignore') if e.stderr else str(e)
+        print(f"UPLOAD FFMPEG ERROR: {stderr}")
+        return jsonify({'error': f'Video processing failed: {stderr[-300:]}'}), 500
     except Exception as e:
         print(f"ERROR: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 # ---------------------------------------------------------------------------
 # Export: returns instantly with a job URL; the encode runs in the worker.
