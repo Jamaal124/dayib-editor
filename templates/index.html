@@ -225,7 +225,7 @@
             <span>Click to browse or drag & drop</span>
             <div class="file-name" id="fileName"></div>
         </label>
-        <input type="file" id="videoInput" accept="video/*">
+        <input type="file" id="videoInput" accept="video/*" multiple>
 
         <button class="btn" onclick="uploadVideo()">ANALYSE VIDEO</button>
         <div id="status"></div>
@@ -319,9 +319,11 @@
             const fileName = document.getElementById('fileName');
             const label = document.querySelector('.file-label span');
             if (this.files[0]) {
-                fileName.textContent = this.files[0].name;
+                fileName.textContent = this.files.length === 1
+                    ? this.files[0].name
+                    : this.files.length + ' clips selected';
                 fileName.style.display = 'block';
-                label.textContent = 'File selected ✓';
+                label.textContent = this.files.length + ' file(s) selected ✓';
             }
         });
 
@@ -339,7 +341,9 @@
             status.textContent = 'Uploading and transcribing... this may take a few minutes';
 
             const formData = new FormData();
-            formData.append('video', fileInput.files[0]);
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('videos', fileInput.files[i]);
+            }
 
             const response = await fetch('/upload', {
                 method: 'POST',
