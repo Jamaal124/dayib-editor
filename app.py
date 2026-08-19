@@ -33,6 +33,14 @@ def hex_to_ass_colour(hex_colour):
     r, g, b = h[0:2], h[2:4], h[4:6]
     return f"&H{b}{g}{r}".upper()
 
+def hex_to_drawtext_colour(hex_colour):
+    """drawtext (used for the title) wants 0xRRGGBB — NOT the &HBBGGRR that
+    libass/subtitles use. Different filter, different colour format."""
+    h = hex_colour.lstrip('#')
+    if len(h) != 6:
+        h = 'ffffff'
+    return f"0x{h.upper()}"
+
 # Map the dropdown choices to fonts the Dockerfile actually installs
 # (fonts-liberation package). Unknown values fall back to serif.
 TITLE_FONTS = {
@@ -171,7 +179,7 @@ def run_export(job_id, data):
         title_text = data.get('title_text', '')
         title_duration = int(data.get('title_duration', 3))
         if title_text:
-            title_colour = hex_to_ass_colour(data.get('title_colour', '#ffffff'))
+            title_colour = hex_to_drawtext_colour(data.get('title_colour', '#ffffff'))
             title_font = TITLE_FONTS.get(data.get('title_font', 'serif'), TITLE_FONTS['serif'])
             # textfile= instead of text=: avoids ffmpeg filter-escaping bugs with
             # apostrophes/commas/colons in the title (e.g. "Abdi's Test").
