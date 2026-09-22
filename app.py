@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
 import assemblyai as aai
@@ -564,8 +564,9 @@ def job_status(job_id):
 @app.route('/download/<filename>')
 @login_required
 def download(filename):
-    return send_file(
-        os.path.join(app.config['UPLOAD_FOLDER'], filename),
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        filename,
         as_attachment=True
     )
 
